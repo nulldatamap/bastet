@@ -1,0 +1,80 @@
+// Wow
+fn nop = ()
+
+fn id x : Int -> Int = x
+
+fn dual_nop x : (), y : () = nop
+
+fn add a : (Int (a)), b : Int -> Int = a + b
+
+fn cond a : Bool, b : Int, c : Int -> Int =
+  if a then b else c 
+
+fn fib x : Int -> Int =
+  if x > 2
+  then fib (x - 1) + fib (x - 2)
+  else 1
+
+fn x =
+  case x of
+    10 => wow,
+    _  => "Hello",
+    a@b => 'w',
+    x   => 13.0010,
+    App x y => x
+
+fn do_stuff =
+  let x = 10;
+  let y = x + 1,
+      z = y + x;
+  let ret = 10
+   in return ret
+
+alias Name = String
+
+alias Option a = Maybe a
+
+data Maybe a = None | Just a
+
+data Color = Red | Green | Blue
+
+data Free f a = Free (f (Free f a)) | Pure a
+
+data List a = Cons a (Wow::List a) | Nil
+/*
+trait Functor where
+  has fmap f : (fn a -> b), self : Self a -> Self b
+
+instance List a where
+  impl map f : fn a -> b, x : Self -> List b =
+     case x of
+      Cons a rst => Cons (f a) <| map f rst
+      Nil        => Nil
+
+instance List a of Functor where
+  impl fmap f : (fn a -> b), self : Self -> List b =
+    self.map f
+
+data Event = TakeDamage Int | LevelUp
+
+data JohnCena =
+  JohnCena { children : (List CenaChild)
+           , health   : Int
+           , strength : Int
+           , inbox    : Inbox Event }
+-
+instance JohnCena where
+  impl update mut self : Self
+    assures is_empty self.inbox = 
+    // Update the children
+    self.children.map CenaChild::update;
+    
+    self.health = self.health + 1;
+    inbox.avaialable |> drain |evt| => (
+        case evt of
+          TakeDamage amount => self.health = self.health - amount
+          LevelUp           => ( self.health = self.health + 10;
+                                 self.strength = self.strength + 1 )
+      )
+
+*/

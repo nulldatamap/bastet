@@ -1,0 +1,41 @@
+name:                bastet
+version:             0.1.0.0
+synopsis:            Initial project template from stack
+description:         Please see README.md
+homepage:            http://github.com/nulldatamap/bastet#readme
+license:             MIT
+license-file:        LICENSE
+author:              Marco 'Nulldata' A. Persson
+maintainer:          nulldatamap@gmail.com
+copyright:           2016 Marco 'Nulldata' A. Persson
+category:            Language
+build-type:          Simple
+-- extra-source-files:  
+cabal-version:       >=1.22
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Free, Ast, Parser
+  build-depends:       base >= 4.8, parsec >= 3.1
+  default-language:    Haskell2010
+
+executable bastet
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base >= 4.8, bastet
+  default-language:    Haskell2010
+
+test-suite bastet-test
+  type:                detailed-0.9
+  hs-source-dirs:      test
+  test-module:         Tests
+  build-depends:       base
+                     , bastet
+                     , Cabal >= 1.22
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/nulldatamap/bastet
