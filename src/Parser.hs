@@ -167,7 +167,7 @@ ptype =
   <|> (reservedOp "_" *> return Unknown)
   <|> (Param <$> identifier)
   <|> parens atype
-  <|> (NamedType <$> typePath)
+  <|> (TNamed <$> typePath)
   <?> "type"
   where
     fnret =

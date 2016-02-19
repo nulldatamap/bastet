@@ -51,12 +51,12 @@ data TypePath = TypePath [(TypeIdent, [Type])]
 data Path = Path TypePath Ident
   deriving (Eq)
 
-data Type = NamedType TypePath
-          | UnitType
-          | FnType [Type] Type
-          | Param String
-          | TypeApply Type [Type]
-          | Unknown
+data Type = TNamed TypePath
+          | TUnit
+          | TFn [Type] Type
+          | TParam String
+          | TApply Type [Type]
+          | TUnknown
   deriving (Eq)
 
 data Literal = LInt Integer
@@ -80,13 +80,13 @@ data Pattern = PWildcard
   deriving (Eq)
 
 data CaseExpr a =
-  CaseExpr { subject :: a
-           , cases   :: [(Pattern, a)] }
+  CaseExpr { caseSubject :: a
+           , caseCases   :: [(Pattern, a)] }
   deriving (Functor, Eq)
 
 data LetExpr a =
-  LetExpr { definitions :: [(Pattern, a)]
-          , inExpr      :: Maybe a }
+  LetExpr { letBinding :: [(Pattern, a)]
+          , letExpr    :: Maybe a }
   deriving (Functor, Eq)
 
 data Expression a = ECall a [a]
@@ -155,13 +155,13 @@ instance Show Path where
   show (Path tp n) = show tp ++ "::" ++ n
 
 instance Show Type where
-  show (NamedType n) = show n
-  show (UnitType) = "()"
-  show (Unknown) = "_"
-  show (FnType as r) =
+  show (TNamed n) = show n
+  show (TUnit) = "()"
+  show (TUnknown) = "_"
+  show (TFn as r) =
     "(fn " ++ (mlace " " $ map show as) ++ "->" ++ show r ++ ")"
-  show (Param x) = x
-  show (TypeApply f xs) = "(" ++ show f ++ " " ++ mlace " " (map show xs) ++ ")"
+  show (TParam x) = x
+  show (TApply f xs) = "(" ++ show f ++ " " ++ mlace " " (map show xs) ++ ")"
 
 instance Show Literal where
   show (LInt x) = show x
