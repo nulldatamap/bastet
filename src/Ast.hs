@@ -2,7 +2,7 @@
 
 module Ast
   ( show_constructs, uget, uset, ufield, ucall, unamed, uliteral
-  , uif, usequence, toplevelName, ureturn, ucase, ulet
+  , uif, usequence, toplevelName, ureturn, ucase, ulet, utuple
   , Ident(..), Type(..), Literal(..), Expression(..) , FuncDef(..)
   , AliasDef(..), Construct(..), IfExpr(..), UExpr(..), UFuncDef(..)
   , UConstruct(..), DataDef(..), TypePath(..), Path(..), CaseExpr(..)
@@ -33,6 +33,7 @@ ureturn a       = Free $ EReturn a
 ucase a         = Free $ ECase a
 ulet a          = Free $ ELet a
 usequence exprs = Free $ ESequence exprs
+utuple a        = Free $ ETuple a
 
 toplevelName    = Path (TypePath [])
 
@@ -96,6 +97,7 @@ data Expression a = ECall a [a]
                   | ESet a a
                   | EIf (IfExpr a)
                   | EReturn a
+                  | ETuple [a]
                   | ECase (CaseExpr a)
                   | ELet (LetExpr a)
                   | ESequence [a]
@@ -229,3 +231,5 @@ instance Show a => Show (Expression a) where
     where
       defs = mlace ", " $ map (\(p, e) -> show p ++ " = " ++ show e) ds
       ins = fromMaybe "" (fmap (\x -> " in " ++ show x) i)
+  show (ETuple x) = "(" ++ (mlace ", " $ map show x ) ++ ")"
+

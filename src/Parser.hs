@@ -54,14 +54,18 @@ path = do
 term :: Parser UExpr
 term = 
   (uliteral <$> literal)
-  <|> parenUExprOrUnit
+  <|> parenUExprOrTuple
   <|> (unamed <$> path)
   <|> (ufield <$> (reservedOp "." *> name))
   <?> "expression"
   where
     -- Tries to parse an expression inside parens, if there is none parse a unit
-    parenUExprOrUnit =
-      fromMaybe (uliteral LUnit) <$> parens (optionMaybe expressions)
+    parenUExprOrTuple = do
+      elms <- parens (sepBy expressions comma)
+      case elms of
+        []  -> return $ uliteral LUnit
+        [e] -> return $ e
+        rst -> return $ utuple rst
 
 -- Tries to parse a chain of field accesors
 field = do
