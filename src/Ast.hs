@@ -56,6 +56,7 @@ data Type = TNamed TypePath
           | TFn [Type] Type
           | TParam String
           | TApply Type [Type]
+          | TTuple [Type]
           | TUnknown
   deriving (Eq)
 
@@ -162,6 +163,7 @@ instance Show Type where
     "(fn " ++ (mlace " " $ map show as) ++ "->" ++ show r ++ ")"
   show (TParam x) = x
   show (TApply f xs) = "(" ++ show f ++ " " ++ mlace " " (map show xs) ++ ")"
+  show (TTuple x) = "(" ++ (mlace ", " $ map show x) ++ ")"
 
 instance Show Literal where
   show (LInt x) = show x

@@ -104,7 +104,7 @@ caseExpr =
   where
     cases = (,) <$> pattern <*> (reservedOp "=>" *> expression)
 
-letExpr =
+letDefExpr =
   LetExpr <$> (reserved "let" *> sepBy1 def comma)
           <*> (optionMaybe $ reserved "in" *> expression)
   where
@@ -117,7 +117,7 @@ appl =
   (uif <$> ifExpr)
   <|> (ureturn <$> (reserved "return" *> expression))
   <|> (ucase <$> caseExpr)
-  <|> (ulet <$> letExpr)
+  <|> (ulet <$> letDefExpr)
   <|> callify <$> many1 field
   <?> "expression"
   where
@@ -161,24 +161,29 @@ expressions =
 
 ptype =
   
-  (FnType <$> (reserved "fn" *> (sepBy atype comma))
+  (TFn <$> (reserved "fn" *> (sepBy atype comma))
           <*> fnret)
-  <|> (reservedOp "()" *> return UnitType)
-  <|> (reservedOp "_" *> return Unknown)
-  <|> (Param <$> identifier)
-  <|> parens atype
+  <|> (reservedOp "_" *> return TUnknown)
+  <|> (TParam <$> identifier)
+  <|> atypeOrTuple
   <|> (TNamed <$> typePath)
   <?> "type"
   where
     fnret =
-      fromMaybe <$> (return UnitType)
+      fromMaybe <$> (return TUnit)
                 <*> optionMaybe (reservedOp "->" *> atype)
+    atypeOrTuple = do
+      elms <- parens (sepBy atype comma)
+      case elms of
+        []  -> return TUnit
+        [t] -> return t
+        rst -> return $ TTuple rst
 
 atype = do
   ts <- many1 ptype
   case ts of
     [t]  -> return $ t
-    x:xs -> return $ TypeApply x xs
+    x:xs -> return $ TApply x xs
 
 typePath = do
   first <- fragment
