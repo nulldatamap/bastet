@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 
 module Ast
-  ( show_constructs, uget, uset, ufield, ucall, unamed, uliteral
+  ( showConstructs, uget, uset, ufield, ucall, unamed, uliteral
   , uif, usequence, toplevelName, ureturn, ucase, ulet, utuple
   , Ident(..), Type(..), Literal(..), Expression(..) , FuncDef(..)
   , AliasDef(..), Construct(..), IfExpr(..), UExpr(..), UFuncDef(..)
@@ -70,7 +70,7 @@ data Literal = LInt Integer
 data IfExpr a =
   IfExpr { ifCond :: a
          , ifThen :: a
-         , ifElse :: (Maybe a) }
+         , ifElse :: Maybe a }
   deriving (Functor, Eq)
 
 data Pattern = PWildcard
@@ -150,7 +150,7 @@ instance Show TypePath where
     mlace "::" $ map (\(n, aps) ->
       case aps of
         [] -> n 
-        _  -> "(" ++ n ++ (pres $ mlace " " $ map show aps) ++ ")" ) elms
+        _  -> "(" ++ n ++ pres (mlace " " $ map show aps) ++ ")" ) elms
 
 instance Show Path where
   show (Path (TypePath []) n) = n
@@ -158,17 +158,17 @@ instance Show Path where
 
 instance Show Type where
   show (TNamed n) = show n
-  show (TUnit) = "()"
-  show (TUnknown) = "_"
+  show TUnit = "()"
+  show TUnknown = "_"
   show (TFn as r) =
-    "(fn " ++ (mlace " " $ map show as) ++ "->" ++ show r ++ ")"
+    "(fn " ++ mlace " " (map show as) ++ "->" ++ show r ++ ")"
   show (TParam x) = x
   show (TApply f xs) = "(" ++ show f ++ " " ++ mlace " " (map show xs) ++ ")"
-  show (TTuple x) = "(" ++ (mlace ", " $ map show x) ++ ")"
+  show (TTuple x) = "(" ++ mlace ", " (map show x) ++ ")"
 
 instance Show Literal where
   show (LInt x) = show x
-  show (LUnit) = "()"
+  show LUnit = "()"
   show (LChar x) = "'" ++ x : "'"
   show (LString x) = "\"" ++ x ++ "\""
   show (LFloat x) = show x
@@ -179,7 +179,7 @@ instance Show e => Show (FuncDef e) where
     where
       argst = mlace ", " $ map (\(x, t) -> x ++ " : " ++ show t) as
       rett = maybe " " (\x -> " -> " ++ show x ++ " ") rt
-      bodyt = maybe "" (\x -> show x) bd
+      bodyt = maybe "" show bd
 
 instance Show DataDef where
   show (DataDef nm as bd) =
@@ -189,7 +189,7 @@ instance Show DataDef where
       bodyt =
         mlace " | "
         $ map (\(ctor, elms) ->
-            ctor ++ (pres (mlace " " $ map show elms)))
+            ctor ++ pres (mlace " " $ map show elms))
           bd
 
 instance Show AliasDef where
@@ -198,15 +198,15 @@ instance Show AliasDef where
     where
        argst = poss $ mlace " " $ map show as
 
-show_constructs cs = intercalate "\n" $ map show cs
+showConstructs cs = intercalate "\n" $ map show cs
 
 instance Show Pattern where
-  show (PWildcard) = "_"
+  show PWildcard = "_"
   show (PBind x) = x
   show (PApply tp as) = show tp ++ pres (mlace " " (map show as))
   show (PValue x) = show x
   show (PAt n e) = n ++ "@" ++ show e
-  show (PTuple x) = "(" ++ (mlace ", " $ map show x ) ++ ")"
+  show (PTuple x) = "(" ++ mlace ", " (map show x) ++ ")"
 
 instance Show e => Show (Construct e) where
   show (CFuncDef x)  = show x
@@ -234,6 +234,6 @@ instance Show a => Show (Expression a) where
     "let " ++ defs ++ ins
     where
       defs = mlace ", " $ map (\(p, e) -> show p ++ " = " ++ show e) ds
-      ins = fromMaybe "" (fmap (\x -> " in " ++ show x) i)
-  show (ETuple x) = "(" ++ (mlace ", " $ map show x ) ++ ")"
+      ins = maybe "" (\x -> " in " ++ show x) i
+  show (ETuple x) = "(" ++ mlace ", " (map show x) ++ ")"
 
