@@ -78,6 +78,7 @@ data Pattern = PWildcard
              | PApply TypePath [Pattern]
              | PAt Ident Pattern
              | PValue Literal
+             | PTuple [Pattern]
   deriving (Eq)
 
 data CaseExpr a =
@@ -205,6 +206,7 @@ instance Show Pattern where
   show (PApply tp as) = show tp ++ pres (mlace " " (map show as))
   show (PValue x) = show x
   show (PAt n e) = n ++ "@" ++ show e
+  show (PTuple x) = "(" ++ (mlace ", " $ map show x ) ++ ")"
 
 instance Show e => Show (Construct e) where
   show (CFuncDef x)  = show x

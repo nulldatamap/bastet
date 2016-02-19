@@ -83,7 +83,7 @@ ifExpr =
 
 pattern =
   (reservedOp "_" *> (return PWildcard))
-  <|> parens pattern
+  <|> parensPatternOrTuple
   <|> constructor
   <|> bindOrAt
   <|> (PValue <$> literal)
@@ -97,6 +97,12 @@ pattern =
       case atpat of
         Nothing -> return $ PBind n
         Just x  -> return $ PAt n x
+    parensPatternOrTuple = do
+      elms <- parens (sepBy pattern comma)
+      case elms of
+        []  -> return $ PValue LUnit
+        [p] -> return p
+        rst -> return $ PTuple rst
 
 caseExpr =
   CaseExpr <$> (reserved "case" *> expression <* reserved "of")

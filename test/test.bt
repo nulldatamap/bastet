@@ -15,7 +15,9 @@ fn fib x : Int -> Int =
   then fib (x - 1) + fib (x - 2)
   else 1
 
-fn tuples -> (Int, Int, ()) = (1, 2, ())
+fn tuples -> (Int, Int, ()) =
+  let (x, y, ()) = (1, 2, ()); 
+  (x, (((y))), ())
 
 fn x =
   case x of
