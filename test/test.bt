@@ -1,4 +1,19 @@
 // Wow
+
+/*
+  wow
+*/
+
+/*
+  /*
+    Nested wow
+  */
+*/
+
+// /*
+  Wow
+*/
+
 fn nop = ()
 
 fn id x : Int -> Int = x
@@ -15,20 +30,23 @@ fn fib x : Int -> Int =
   then fib (x - 1) + fib (x - 2)
   else 1
 
-fn tuples -> (Int, Int, ()) =
+fn tuples -> (Int, Int, ( )) =
   let (x, y, ()) = (1, 2, ()); 
   (x, (((y))), ())
 
-fn x =
+fn x -> Some::(Type a)=
   case x of
-    10 => wow,
-    _  => "Hello",
+    10 => wow <| 10,
+    _  => "Hello" |> print,
     a@b => 'w',
     x   => 13.0010,
-    App x y => x
+    App x y => Kek::x
 
 fn do_stuff =
   let x = 10;
+
+  x = 13;
+  
   let y = x + 1,
       z = y + x;
   let ret = 10
@@ -80,5 +98,4 @@ instance JohnCena where
           LevelUp           => ( self.health = self.health + 10;
                                  self.strength = self.strength + 1 )
       )
-
 */

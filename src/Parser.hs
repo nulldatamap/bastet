@@ -1,291 +1,341 @@
-module Parser (parseFromString, parseFromFile) where
+module Parser (parseFromTokens) where
 
+-- Hide span since we use it as a parser
+import Prelude hiding (span)
+
+import Span
+import Tokenizer
 import Ast
-import Free
+import Annotation
 
 import Data.Maybe
 import Control.Applicative ((<$>), (<*>), (<*), (*>), (<$))
 
-import Text.ParserCombinators.Parsec hiding (parseFromFile)
+import Text.Parsec hiding (parseFromFile, satisfy, char, string)
 import Text.ParserCombinators.Parsec.Expr
-import qualified Text.ParserCombinators.Parsec.Token as Token 
-import Text.ParserCombinators.Parsec.Language
 
+type Parser a = Parsec [Token] () a
 
-lexerStyle :: Token.LanguageDef ()
-lexerStyle = Token.LanguageDef
-  { Token.commentStart   = "/*"
-  , Token.commentEnd     = "*/"
-  , Token.commentLine    = "//"
-  , Token.nestedComments = True
-  , Token.identStart     = lower
-  , Token.identLetter    = alphaNum <|> oneOf "_"
-  , Token.opStart        = Token.opLetter lexerStyle
-  , Token.opLetter       = oneOf "`~!@$%^&*-+|=;:<>./?"
-  , Token.reservedOpNames= [ ":", "*", "/", "%", "+", "-", "=", "&", "|", "!"
-                           , "==", "<", ">", "!=", ">=", "<=", "<|", "|>", "->"
-                           , "()", "_", ".", "::" ]
-  , Token.reservedNames  = [ "and", "or", "not", "if", "then", "else", "fn"
-                           , "data", "alias", "return", "where", "of", "in"
-                           , "instance", "trait", "impl", "has", "let", "mut" ]
-  , Token.caseSensitive  = True
-  }
+parens i = reservedOp "(" *> i <* reservedOp ")"
+
+string     = (\(Token (TString s) _) -> s)   <$> (satisfy isStringToken)
+char       = (\(Token (TChar s) _) -> s)     <$> (satisfy isCharToken)
+int        = (\(Token (TInt s) _) -> s)      <$> (satisfy isIntToken)
+float      = (\(Token (TFloat s) _) -> s)    <$> (satisfy isFloatToken)
+operator   = (\(Token (TOperator s) _) -> s) <$> (satisfy isOperatorToken)
+ident      = (\(Token (TIdent i) s) -> Ident i s)    <$> (satisfy isIdentToken)
+typeIdent  = (\(Token (TTypeIdent t) s) -> TypeIdent t s) <$> (satisfy isTypeIdentToken)
+
+keyword    x = satisfy $ isKeywordToken x
+reservedOp x = satisfy $ isReservedOperatorToken x
+
+satisfy :: (Token -> Bool) -> Parser Token
+satisfy p = tokenPrim showTok nextPos testTok
+  where
+    showTok = show
+    nextPos _ (Token _ spn) _ = spanToPos spn
+    testTok t = if p t then Just t else Nothing
+
+span :: Parser (Span -> a) -> Parser a
+span p = do
+  start <- getPosition
+  r <- p
+  end <- getPosition
+  return $ r $ posToSpan start end
+
+getSpan :: Parser a -> Parser (a, Span)
+getSpan p = do
+  start <- getPosition
+  r <- p
+  end <- getPosition
+  return $ (r, posToSpan start end)
+
+currentSpan :: Parser Span
+currentSpan = posToSpan <$> getPosition <*> getPosition
+
+comma = reservedOp ","
+semi = reservedOp ";"
+
+opName :: Parser String
+opName = reOp <|> operator
+  where
+    reOp = do
+      (Token (TReservedOperator o) _) <- (satisfy anyReOp)
+      return o
+      where
+        anyReOp (Token (TReservedOperator _) _) = True
+        anyReOp _                               = False
+
+name = ident <|> parenOp <?> "identifier or operator"
+  where
+    parenOp = span $ Ident <$> (try (parens opName))
 
 literal :: Parser Literal
 literal =
-  (LInt <$> (try $ Token.hexadecimal lexer))
-  <|> intOrFloat
-  <|> (LChar <$> Token.charLiteral lexer)
-  <|> (LString <$> Token.stringLiteral lexer)
-  where
-    intOrFloat = do
-      iof <- Token.naturalOrFloat lexer
-      case iof of
-        Left  i -> return $ LInt i
-        Right f -> return $ LFloat f
-
-path = do
-  tp <- optionMaybe typePath
-  id <- name
-  return $ Path (fromMaybe (TypePath []) tp) id
+  span $
+    ((Literal <$> LInt <$> int) 
+    <|> (Literal <$> LFloat <$> float)
+    <|> (reservedOp "()" *> (return $ Literal LUnit))
+    <|> (Literal <$> LString <$> string)
+    <|> (Literal <$> LChar <$> char)
+    <?> "literal")
 
 -- A term is the highest precendence element in an expression tree
 -- Literals, named values and nested expressions fall under this category
 term :: Parser UExpr
 term = 
-  (uliteral <$> literal)
-  <|> parenUExprOrTuple
-  <|> (unamed <$> path)
-  <|> (ufield <$> (reservedOp "." *> name))
+  (span (uliteral <$> literal))
+  <|> (parenUExpr)
+  <|> (span (unamed <$> path))
+  <|> (span (ufield <$> (reservedOp "." *> name)))
   <?> "expression"
   where
     -- Tries to parse an expression inside parens, if there is none parse a unit
-    parenUExprOrTuple = do
-      elms <- parens (sepBy expressions comma)
+    parenUExpr = do
+      (elms, s) <- getSpan $ parens (sepBy expressions comma)
       case elms of
-        []  -> return $ uliteral LUnit
+        []  -> return $ uliteral (Literal LUnit s) s
         [e] -> return $ e
-        rst -> return $ utuple rst
+        rst -> return $ utuple rst s
+
+path = do
+  tp <- optionMaybe (typePath <* reservedOp "::")
+  id <- name
+  return $ Path (fromMaybe (TypePath []) tp) id
+  <?> "name path"
 
 -- Tries to parse a chain of field accesors
-field = do
-  t <- term
-  fs <- many (uget <$> (reservedOp "." *> name))
-  case fs of
-    [] -> return t
-    _  -> return $ foldl (\acc x -> x acc) t fs
-
+field :: Parser UExpr
+field =
+  theField
+  where
+    theField = do
+      t <- term
+      fs <- many (spanningFields <$> (reservedOp "." *> name))
+      case fs of
+        [] -> return t
+        _  -> return $ foldl (\acc x -> x acc) t fs
+    spanningFields x (Fix y) =
+      (uget x (Fix y) (enclosingSpan (exprSpan y) (identSpan x)))
 
 ifExpr =
-  IfExpr <$> (reserved "if" *> expression)
-         <*> (reserved "then" *> expression)
-         <*> optionMaybe (reserved "else" *> expression)
+  span theIf
+  where
+    theIf = 
+      IfExpr <$> (keyword "if" *> expression)
+             <*> (keyword "then" *> expression)
+             <*> optionMaybe (keyword "else" *> expression)
 
+pattern :: Parser Pattern
 pattern =
-  (reservedOp "_" *> (return PWildcard))
+  wildcard
+  <|> unit
   <|> parensPatternOrTuple
   <|> constructor
-  <|> bindOrAt
-  <|> (PValue <$> literal)
+  <|> span bindOrAt
+  <|> (span $ Pattern <$> (PValue <$> literal))
   where
+    unit = do
+      (_, s) <- getSpan $ reservedOp "()"
+      return $ Pattern (PValue (Literal LUnit s)) s
+    wildcard = span $ Pattern <$> (reservedOp "_" *> return PWildcard)
     constructor = 
-      PApply <$> typePath
-             <*> many pattern
+      span $ Pattern <$> (PApply <$> typePath <*> many pattern)
     bindOrAt = do
-      n <- identifier
+      n <- ident
       atpat <- optionMaybe $ reservedOp "@" *> pattern
       case atpat of
-        Nothing -> return $ PBind n
-        Just x  -> return $ PAt n x
+        Nothing -> return $ Pattern $ PBind n
+        Just x  -> return $ Pattern $ PAt n x
     parensPatternOrTuple = do
-      elms <- parens (sepBy pattern comma)
+      (elms, s) <- getSpan $ parens (sepBy pattern comma)
       case elms of
-        []  -> return $ PValue LUnit
+        []  -> return $ Pattern (PValue $ Literal LUnit s) s
         [p] -> return p
-        rst -> return $ PTuple rst
+        rst -> return $ Pattern (PTuple rst) s
 
 caseExpr =
-  CaseExpr <$> (reserved "case" *> expression <* reserved "of")
-           <*> sepBy cases (reservedOp ",")
+  span theCase
   where
+    theCase =
+      CaseExpr <$> (keyword "case" *> expression <* keyword "of")
+               <*> sepBy cases comma
     cases = (,) <$> pattern <*> (reservedOp "=>" *> expression)
 
 letDefExpr =
-  LetExpr <$> (reserved "let" *> sepBy1 def comma)
-          <*> (optionMaybe $ reserved "in" *> expression)
+  span theLet
   where
+    theLet = 
+      LetExpr <$> (keyword "let" *> sepBy1 def comma)
+              <*> (optionMaybe $ keyword "in" *> expression)
+    
     def = (,) <$> pattern <*> (reservedOp "=" *> expression)
 
 -- appl is the third highest precedence, this groups terms into function 
 -- applications ( if any ) and it also parses flow control expressions
 appl :: Parser UExpr
 appl =
-  (uif <$> ifExpr)
-  <|> (ureturn <$> (reserved "return" *> expression))
-  <|> (ucase <$> caseExpr)
-  <|> (ulet <$> letDefExpr)
-  <|> callify <$> many1 field
+  (span $ uif <$> ifExpr)
+  <|> (span $ ureturn <$> (keyword "return" *> expression))
+  <|> (span $ ucase <$> caseExpr)
+  <|> (span $ ulet <$> letDefExpr)
+  <|> callify <$> (getSpan $ many1 field)
   <?> "expression"
   where
-    callify [f] = f
-    callify (f:as) = Free $ ECall f as
+    callify ([f], _) = f
+    callify ((f:as), s) = ucall f as s
 
-exprTable :: OperatorTable Char () UExpr
+exprTable :: OperatorTable Token () UExpr
 exprTable =
-  [ [ po "-", pw "not" ]
-  , [ lo "*", lo "/", lo "%" ]
-  , [ lo "+", lo "-" ]
-  , [ lo ">=", lo "<=", lo ">", lo "<" ]
-  , [ lo "==", lo "!=" ]
-  , [ lo "|", lo "&"]
-  , [ lk "and", lk "or" ]
-  , [ leftOp "<|" (\l r -> ucall l [r])
-    , leftOp "|>" (\l r -> ucall r [l]) ]
+  [ [ preOp "-", preKw "not" ]
+  , [ leftOp "*", leftOp "/", leftOp "%" ]
+  , [ leftOp "+", leftOp "-" ]
+  , [ leftOp ">=", leftOp "<=", leftOp ">", leftOp "<" ]
+  , [ leftOp "==", leftOp "!=" ]
+  , [ leftOp "|", leftOp "&"]
+  , [ leftKw "and", leftKw "or" ]
+  , [ leftOp' "<|" $ return $ applyThem True
+    , leftOp' "|>" $ return $ applyThem False ]
   , [ eqOp ] ]
   where
-    po n = prefixOp n (\val -> ucall (unamed $ toplevelName n) [val])
-    pw n = prefixKw n (\val -> ucall (unamed $ toplevelName n) [val])
-    lo n = leftOp n (\l r -> ucall (unamed $ toplevelName n) [l, r])
-    lk n = leftKw n (\l r -> ucall (unamed $ toplevelName n) [l, r])
-    eqOp = Infix (do{ reservedOp "="; return $ (\l r -> uset (setValidate l) r) }) AssocNone
+    applyThem swp ape@(Fix ap) are@(Fix ar) =
+      let theSpan = if swp
+                    then enclosingSpan (exprSpan ap) (exprSpan ar)
+                    else enclosingSpan (exprSpan ar) (exprSpan ap)
+      in ucall ape [are] theSpan
+    eqOp =
+      Infix (reservedOp "=" *> return theOp) AssocNone
+      where
+        theOp l@(Fix le) r@(Fix re) =
+          let theSpan = enclosingSpan (exprSpan le) (exprSpan re)
+          in uset l r theSpan
 
--- Tries to validate the left hand side of a set operation ( assigment )
-setValidate e@(Free (ENamed _)) = e
-setValidate e@(Free (EGet _ _)) = e
-setValidate e =
-  fail $ "Invalid left hand side of assigment: " ++ show e
+injectNamed f k name = do
+  opNm <- span $ unamed <$>
+        (toplevelName <$>
+          (span $ Ident <$> (k name *> return name)))
+  return $ f opNm
 
+leftOp' name f =
+  Infix (reservedOp name *> f) AssocLeft
+
+infixOp k a name =
+  Infix (injectNamed makeCall k name) a
+  where
+    makeCall opNm l@(Fix le) r@(Fix re) =
+      let theSpan = enclosingSpan (exprSpan le) (exprSpan re)
+      in (ucall opNm [l, r]) theSpan
+
+prefixOp k name =
+  Prefix (injectNamed makeCall k name)
+  where
+    makeCall opNm@(Fix opNme) a@(Fix ar) =
+      let theSpan = enclosingSpan (exprSpan opNme) (exprSpan ar)
+      in (ucall opNm [a]) theSpan
+
+leftOp = infixOp reservedOp AssocLeft
+leftKw = infixOp keyword   AssocLeft
+preOp = prefixOp reservedOp
+preKw = prefixOp keyword
 
 expression :: Parser UExpr
 expression = buildExpressionParser exprTable appl
 
 expressions :: Parser UExpr
 expressions =
-    usequence <$> sepEndBy1 expression (return $ uliteral LUnit) semi 
+    span $ usequence <$> (sepEndBy1 expression lastUnit semi)
   where
     sepEndBy1 p q sep = (:) <$> p <*> many (sep *> (p <|> q))
+    lastUnit =
+      span $ (uliteral <$> (Literal LUnit <$> currentSpan))
 
+ptype :: Parser Type
 ptype =
-  
-  (TFn <$> (reserved "fn" *> (sepBy atype comma))
-          <*> fnret)
-  <|> (reservedOp "_" *> return TUnknown)
-  <|> (TParam <$> identifier)
-  <|> atypeOrTuple
-  <|> (TNamed <$> typePath)
-  <?> "type"
+  span (tupleType <|> (Type <$> kind))
   where
+    kind = 
+      (TFn <$> (keyword "fn" *> (sepBy atype comma)) <*> fnret)
+      <|> (reservedOp "_" *> return TUnknown)
+      <|> (TParam <$> ident)
+      <|> (TNamed <$> typePath)
+      <|> (reservedOp "()" *> return TUnit)
+      <?> "type"
+
     fnret =
-      fromMaybe <$> (return TUnit)
+      fromMaybe <$> (span $ return $ Type TUnit)
                 <*> optionMaybe (reservedOp "->" *> atype)
-    atypeOrTuple = do
+    
+    tupleType = do
       elms <- parens (sepBy atype comma)
       case elms of
-        []  -> return TUnit
-        [t] -> return t
-        rst -> return $ TTuple rst
+        []  -> return $ Type TUnit
+        [t] -> return $ const t
+        rst -> return $ Type $ TTuple rst
 
+atype :: Parser Type
 atype = do
-  ts <- many1 ptype
+  (ts, sp) <- getSpan $ many1 ptype
   case ts of
     [t]  -> return $ t
-    x:xs -> return $ TApply x xs
+    x:xs -> return $ Type (TApply x xs) sp
 
 typePath = do
   first <- fragment
-  rest  <- many ( reservedOp "::" *> fragment )
+  rest  <- many $ try (reservedOp "::" *> fragment)
   return $ TypePath $ first : rest
   where
     fragment = nameFragment <|> applyFragment
-    nameFragment = (\x -> (x, [])) <$> typeIdentifer
+    nameFragment = (\x -> (x, [])) <$> typeIdent
     applyFragment =
-      parens $ (,) <$> typeIdentifer
+      parens $ (,) <$> typeIdent
                    <*> ((fromMaybe []) <$> (optionMaybe $ many ptype))
 
 funcDef =
-  FuncDef <$> (reserved "fn" *> (name <?> "function name"))
-          <*> args
-          <*> optionMaybe returnType
-          <*> optionMaybe (reservedOp "=" *> expressions <?> "function body")
-          <?> "function definition"
+  span theFuncDef
   where
-    args = sepBy ( (,) <$> identifier
+    theFuncDef = 
+      FuncDef <$> (keyword "fn" *> (name <?> "function name"))
+              <*> args
+              <*> optionMaybe returnType
+              <*> optionMaybe (reservedOp "=" *> expressions <?> "function body")
+              <?> "function definition"
+    args = sepBy ( (,) <$> ident
                        <*> (reservedOp ":" *> atype
                        <?> "argument type") ) comma
     returnType = reservedOp "->" *> atype <?> "return type"
 
 dataDef =
-  DataDef <$> (reserved "data" *> (typeIdentifer <?> "data structure name"))
-          <*> (many ptype <?> "data structure type parameters")
-          <*> (reservedOp "=" *> (typeCtors <?> "data structure body"))
-          <?> "data structure definition"
+  span theDataDef
   where
+    theDataDef =
+      DataDef <$> (keyword "data" *> (typeIdent <?> "data structure name"))
+              <*> (many ptype <?> "data structure type parameters")
+              <*> (reservedOp "=" *> (typeCtors <?> "data structure body"))
+              <?> "data structure definition"
+
     typeCtors = sepBy1 typeCtor (reservedOp "|")
-    typeCtor = (,) <$> typeIdentifer <*> many ptype
+    typeCtor  = TypeConstructor <$> ((,) <$> typeIdent <*> many ptype)
 
-aliasDef = 
-  AliasDef <$> (reserved "alias" *> (typeIdentifer <?> "type alias name"))
-           <*> (many ptype <?> "type alias type parameters")
-           <*> (reservedOp "=" *> atype)
-           <?> "type alias"
+aliasDef =
+  span theAlias
+  where
+    theAlias =
+      AliasDef <$> (keyword "alias" *> (typeIdent <?> "type alias name"))
+               <*> (many ptype <?> "type alias type parameters")
+               <*> (reservedOp "=" *> atype)
+               <?> "type alias"
 
-construct = 
-  (CFuncDef <$> funcDef)
-  <|> (CDataDef <$> dataDef)
-  <|> (CAliasDef <$> aliasDef)
+construct =
+  span $ Construct <$> kind
+  where
+    kind =  (CFuncDef  <$> funcDef)
+        <|> (CDataDef  <$> dataDef)
+        <|> (CAliasDef <$> aliasDef)
+
 
 program :: Parser [UConstruct]
-program = whiteSpace *> many construct <* eof
+program = many construct <* eof
 
-parseFromString :: String -> Either ParseError [UConstruct]
-parseFromString inp =
-  parse program "(unknown)" inp
-
-parseFromFile :: String -> IO (Either ParseError [UConstruct])
-parseFromFile fname = 
-  parse program fname <$> readFile fname
-
---------------------------------------------------------------------------------
---                                    Utilities                               --
---------------------------------------------------------------------------------
-
-lexer :: Token.TokenParser ()
-lexer = Token.makeTokenParser lexerStyle
-
-parens :: Parser a -> Parser a
-parens = Token.parens lexer
-
-name = identifier <|> (try ( parens maybeReservedOp) )
-
-identifier :: Parser String
-identifier = Token.identifier lexer
-
-typeIdentifer :: Parser String
-typeIdentifer = Token.lexeme lexer ((:) <$> upper <*> many alphaNum)
-
-reservedOp :: String -> Parser ()
-reservedOp = Token.reservedOp lexer
-
-reserved :: String -> Parser ()
-reserved = Token.reserved lexer
-
-operator = Token.operator lexer
-
-maybeReservedOp :: Parser String
-maybeReservedOp = Token.lexeme lexer (many1 $ Token.opLetter lexerStyle)
-
-whiteSpace :: Parser ()
-whiteSpace = Token.whiteSpace lexer
-
-semi = Token.semi lexer
-
-comma :: Parser String
-comma = Token.comma lexer
-
-integer :: Parser Integer
-integer = Token.integer lexer
-
-leftOp name fun = Infix (do{ reservedOp name; return fun }) AssocLeft
-leftKw name fun = Infix (do{ reserved name; return fun }) AssocLeft
-prefixOp name fun = Prefix (do{ reservedOp name; return fun })
-prefixKw name fun = Prefix (do{ reserved name; return fun })
+parseFromTokens :: [Token] -> SourceName -> Either ParseError [UConstruct]
+parseFromTokens inp nam =
+  parse program nam inp

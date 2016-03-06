@@ -15,7 +15,7 @@ cabal-version:       >=1.22
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Free, Ast, Parser
+  exposed-modules:     Span, Tokenizer, Annotation, Ast, Parser
   build-depends:       base >= 4.8, parsec >= 3.1
   default-language:    Haskell2010
 
