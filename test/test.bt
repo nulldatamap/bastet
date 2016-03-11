@@ -18,6 +18,8 @@ fn nop = ()
 
 fn id x : Int -> Int = x
 
+fn id x : a -> a = x
+
 fn dual_nop x : (), y : () = nop
 
 fn add a : (Int (a)), b : Int -> Int = a + b

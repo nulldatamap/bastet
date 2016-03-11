@@ -33,22 +33,27 @@ satisfy :: (Token -> Bool) -> Parser Token
 satisfy p = tokenPrim showTok nextPos testTok
   where
     showTok = show
-    nextPos _ (Token _ spn) _ = spanToPos spn
+    nextPos _ tk tks = spanEndPos $ tokenSpan tk
     testTok t = if p t then Just t else Nothing
 
 span :: Parser (Span -> a) -> Parser a
 span p = do
-  start <- getPosition
-  r <- p
-  end <- getPosition
-  return $ r $ posToSpan start end
+  (r, s) <- getSpan p
+  return $ r s
 
 getSpan :: Parser a -> Parser (a, Span)
 getSpan p = do
-  start <- getPosition
+  -- Get the next tokens pos
+  start <- getNextPos
   r <- p
   end <- getPosition
-  return $ (r, posToSpan start end)
+  return (r, posToSpan start end)
+  where
+    getNextPos = do
+      inp <- getInput
+      case inp of
+        []   -> getPosition
+        tk:_ -> return $ spanToPos $ tokenSpan tk
 
 currentSpan :: Parser Span
 currentSpan = posToSpan <$> getPosition <*> getPosition
@@ -336,6 +341,12 @@ construct =
 program :: Parser [UConstruct]
 program = many construct <* eof
 
+
 parseFromTokens :: [Token] -> SourceName -> Either ParseError [UConstruct]
 parseFromTokens inp nam =
-  parse program nam inp
+  parse (setStartPosition *> program) nam inp
+  where
+    setStartPosition = do
+      case inp of
+        []    -> return ()
+        tk:_  -> setPosition (spanToPos $ tokenSpan tk)

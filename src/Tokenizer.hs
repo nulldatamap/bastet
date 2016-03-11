@@ -1,7 +1,7 @@
 module Tokenizer (tokenize, Token(..), TokenKind(..)
   , isStringToken, isCharToken, isIntToken, isFloatToken, isKeywordToken
   , isOperatorToken, isReservedOperatorToken, isIdentToken, isTypeIdentToken
-  ) where
+  , reconstructSpan) where
 
 import Prelude hiding (span)
 
@@ -9,9 +9,12 @@ import Data.Maybe
 import Control.Applicative ((<$>), (<*>), (<*), (*>), (<$))
 import Numeric
 import Data.Char
+import Data.List hiding (span)
 
 import Text.ParserCombinators.Parsec hiding (parseFromFile)
 import Text.ParserCombinators.Parsec.Expr
+import Text.ParserCombinators.Parsec.Error
+import Text.ParserCombinators.Parsec.Pos
 
 import Span
 
@@ -67,7 +70,7 @@ span p = do
   st <- getPosition
   x <- p
   en <- getPosition
-  return $ x (posToSpan st en)
+  return $ x (charPosToSpan st en)
 
 hexToNum x =
   case readHex x of
@@ -219,3 +222,29 @@ pTokens =
 
 tokenize :: String -> SourceName -> Either ParseError [Token]
 tokenize src nm = parse pTokens nm src
+
+reconstructSpan :: String -> [Token] -> ParseError -> String
+reconstructSpan src tokens err =
+  "Syntax error: " ++ (intercalate "\n" $ map showError $ mergeErrors $ errorMessages err)
+  ++ '\n' : (showSpan errTok src)
+  where
+    inner (SysUnExpect what) = what
+    inner (UnExpect what) = what
+    inner (Expect what) = what
+    inner (Message what) =  what
+
+    mergeErrors errs =
+        nub $ filter ((/= "") . inner) errs
+
+    showError (SysUnExpect what) = "got unexpected " ++ what
+    showError (UnExpect what) = "got unexpected " ++ what
+    showError (Expect what) = "expected " ++ what
+    showError (Message errMsg) = errMsg
+
+    errTok = head $ filter (\(Token _ s) -> enclosedBySpan s) $ tokens
+
+    pos = errorPos err
+
+    enclosedBySpan spn =
+      ((sourceLine pos) <= (startLine spn))
+      && ((sourceColumn pos) <= (startColumn spn))

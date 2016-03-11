@@ -16,14 +16,15 @@ cabal-version:       >=1.22
 library
   hs-source-dirs:      src
   exposed-modules:     Span, Tokenizer, Annotation, Ast, Parser
-  build-depends:       base >= 4.8, parsec >= 3.1
+                       , Module
+  build-depends:       base >= 4.8, parsec >= 3.1, containers
   default-language:    Haskell2010
 
 executable bastet
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
-  build-depends:       base >= 4.8, bastet
+  build-depends:       base >= 4.8, bastet, containers
   default-language:    Haskell2010
 
 test-suite bastet-test

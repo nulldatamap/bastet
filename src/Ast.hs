@@ -99,7 +99,7 @@ data IfExpr a =
          , ifThen :: a
          , ifElse :: Maybe a
          , ifSpan  :: Span }
-  deriving (Functor, Eq)
+  deriving (Show, Functor, Eq)
 
 data PatternKind =
   PWildcard
@@ -119,13 +119,13 @@ data CaseExpr a =
   CaseExpr { caseSubject :: a
            , caseCases   :: [(Pattern, a)]
            , caseSpan     :: Span }
-  deriving (Functor, Eq)
+  deriving (Show, Functor, Eq)
 
 data LetExpr a =
   LetExpr { letBinding :: [(Pattern, a)]
           , letExpr    :: Maybe a
           , letSpan     :: Span }
-  deriving (Functor, Eq)
+  deriving (Show, Functor, Eq)
 
 data ExpressionKind a =
   ECall a [a]
@@ -188,7 +188,7 @@ data Construct a =
 --------------------------------------------------------------------------------
 --                              Printing functions                            --
 --------------------------------------------------------------------------------
-{--
+
 instance Spanable Ident where
   spanOf = identSpan
 
@@ -201,22 +201,22 @@ instance Spanable Type where
 instance Spanable Literal where
   spanOf = literalSpan
 
-instance Spanable (IfExpr a) where
+instance Show a => Spanable (IfExpr a) where
   spanOf = ifSpan
 
 instance Spanable Pattern where
   spanOf = patternSpan
 
-instance Spanable (CaseExpr a) where
+instance Show a => Spanable (CaseExpr a) where
   spanOf = caseSpan
 
-instance Spanable (LetExpr a) where
+instance Show a => Spanable (LetExpr a) where
   spanOf = letSpan
 
-instance Spanable (Expression a) where
+instance Show a => Spanable (Expression a) where
   spanOf = exprSpan
 
-instance Spanable (FuncDef a) where
+instance Show a => Spanable (FuncDef a) where
   spanOf = funcDefSpan
 
 instance Spanable DataDef where
@@ -225,9 +225,9 @@ instance Spanable DataDef where
 instance Spanable AliasDef  where
   spanOf = aliasDefSpan
 
-instance Spanable (Construct a) where
+instance Show a => Spanable (Construct a) where
   spanOf = constructSpan
---}
+
 pres "" = ""
 pres x  = ' ' : x
 spans "" = ""

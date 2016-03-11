@@ -1,4 +1,5 @@
-module Span (Span(..), posToSpan, spanToPos, enclosingSpan, Spanable(..)) where
+module Span (Span(..), charPosToSpan, posToSpan, spanToPos, enclosingSpan
+  , Spanable(..), spanEndPos) where
 
 import Text.ParserCombinators.Parsec.Pos
 import Data.List
@@ -11,15 +12,24 @@ data Span =
        , endColumn   :: Column }
   deriving (Show, Eq)
 
-posToSpan :: SourcePos -> SourcePos -> Span
-posToSpan s e =
+charPosToSpan s e = 
   Span (sourceName s)
        (sourceLine s) (sourceLine e)
        (sourceColumn s) (sourceColumn e - 1)
 
+posToSpan :: SourcePos -> SourcePos -> Span
+posToSpan s e =
+  Span (sourceName s)
+       (sourceLine s) (sourceLine e)
+       (sourceColumn s) (sourceColumn e)
+
 spanToPos :: Span -> SourcePos
 spanToPos s =
   newPos (spanName s) (startLine s) (startColumn s)
+
+spanEndPos :: Span -> SourcePos
+spanEndPos s =
+  newPos (spanName s) (endLine s) (endColumn s)
 
 enclosingSpan :: Span -> Span -> Span
 enclosingSpan s e =
@@ -27,20 +37,40 @@ enclosingSpan s e =
        (startLine s) (endLine e)
        (startColumn s) (endColumn e)
 
-class Spanable x where
+class Show x => Spanable x where
   spanOf :: x -> Span
 
   showSpan :: x -> String -> String
   showSpan x src =
-    displayLines ++ '\n' : highlight
+    body
     where
       srcLines = lines src
       sp = spanOf x
       srcLineCount = 1 + (endLine sp) - (startLine sp)
+      body =
+        if srcLineCount > 1
+        then snd displayLines
+        else (\(w, ls) -> ls ++ '\n' : highlight w) displayLines
+      lineHeader =
+        let headers = map (\x -> (spanName sp) ++ ":" ++ show x ++ "\t")
+                        [startLine sp .. startLine sp + srcLineCount]
+            widest = foldl (\acc x ->
+                       if (length x) > acc
+                       then (length x)
+                       else acc) 0 headers
+        in (widest, headers)
+
       displayLines =
-        intercalate "\n" $
-          take (srcLineCount) $ drop (startLine sp - 1) srcLines
-      highlight =
-        (replicate (startColumn sp - 1) ' ') ++
-          '^' : (replicate (endColumn sp - startColumn sp) '~')
+        (w, intercalate "\n" $ map (\(x,y) -> x ++ y)
+                         $ zip hs
+                         $ take (srcLineCount)
+                         $ drop (startLine sp - 1) srcLines)
+        where
+          (w, hs) = lineHeader
+      highlight w =
+        (replicate w ' ') ++ '\t' : 
+        (replicate (sc - 1) ' ') ++ '^' : (replicate (endColumn sp - sc) '~')
+        where
+          sc = startColumn sp
+
 
