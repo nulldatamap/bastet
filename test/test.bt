@@ -16,8 +16,6 @@
 
 fn nop = ()
 
-fn id x : Int -> Int = x
-
 fn id x : a -> a = x
 
 fn dual_nop x : (), y : () = nop
@@ -65,6 +63,8 @@ data Color = Red | Green | Blue
 data Free f a = Free (f (Free f a)) | Pure a
 
 data List a = Cons a (Wow::List a) | Nil
+
+data Name = Name String
 /*
 trait Functor where
   has fmap f : (fn a -> b), self : Self a -> Self b
