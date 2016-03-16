@@ -50,6 +50,7 @@ v0.2 will focus on adding some of the expected features to flesh out the basics 
 - [ ] Set types
 - [ ] Range types (which are a subset of set types)
 - [ ] Specialization of generic functions
+- [ ] Open types
 
 # Syntax
 So far the syntax looks something like this:
