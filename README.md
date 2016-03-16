@@ -51,6 +51,50 @@ v0.2 will focus on adding some of the expected features to flesh out the basics 
 - [ ] Range types (which are a subset of set types)
 - [ ] Specialization of generic functions
 
+# Syntax
+So far the syntax looks something like this:
+```haskell
+
+data List a = Cons a (Wow::List a) | Nil
+
+trait Functor where
+  has fmap f : (fn a -> b), self : Self a -> Self b
+
+instance List a where
+  impl map f : fn a -> b, x : Self -> List b =
+     case x of
+      Cons a rst => Cons (f a) <| map f rst
+      Nil        => Nil
+
+instance List a of Functor where
+  impl fmap f : (fn a -> b), self : Self -> List b =
+    self.map f
+
+data Event = TakeDamage Int | LevelUp
+
+data JohnCena =
+  JohnCena { children : (List CenaChild)
+           , health   : Int
+           , strength : Int
+           , inbox    : Inbox Event }
+
+instance JohnCena where
+  impl update mut self : Self
+    assures is_empty self.inbox = 
+    // Update the children
+    self.children.map CenaChild::update;
+    
+    self.health = self.health + 1;
+    inbox.avaialable |> drain |evt| => (
+        case evt of
+          TakeDamage amount => self.health = self.health - amount
+          LevelUp           => ( self.health = self.health + 10;
+                                 self.strength = self.strength + 1 )
+      )
+
+
+```
+
 # Experimental Features
 * __Contracts__: Functions can `assume` and `assure` properties about the program's state and those will be enforces at compile time.
 * __Open types__: Or more specifically open enums. Open enums are enums which members can be declared anywhere in the code-base. All required behaviour is implemented at the site of member definition, but they are treated as normal enums. This is useful for easily extensible code, for example for monster types in a game.
