@@ -21,7 +21,7 @@ v0.1 will focus on the basics of the language and compiler.
   - [x] Literals (No list or record literals)
   - [x] Type aliases
 * Features:
-  - [ ] Function and binding name semantics (No module namespacing yet)
+  - [x] Function and binding name semantics (No module namespacing yet)
   - [ ] Data structure and alias name semantics (No module namespacing nor field aliasing)
   - [ ] Assigment right-hand-side validation
   - [ ] Type checking
