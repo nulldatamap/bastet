@@ -118,13 +118,13 @@ data Pattern =
 data CaseExpr a =
   CaseExpr { caseSubject :: a
            , caseCases   :: [(Pattern, a)]
-           , caseSpan     :: Span }
+           , caseSpan    :: Span }
   deriving (Show, Functor, Eq)
 
 data LetExpr a =
   LetExpr { letBinding :: [(Pattern, a)]
           , letExpr    :: Maybe a
-          , letSpan     :: Span }
+          , letSpan    :: Span }
   deriving (Show, Functor, Eq)
 
 data ExpressionKind a =
@@ -346,6 +346,6 @@ instance Show a => Show (ExpressionKind a) where
     "let " ++ defs ++ ins
     where
       defs = mlace ", " $ map (\(p, e) -> show p ++ " = " ++ show e) ds
-      ins = maybe "" (\x -> " in " ++ show x) i
+      ins = maybe "" (\x -> " in (" ++ show x ++ ")") i
   show (ETuple x) = "(" ++ mlace ", " (map show x) ++ ")"
 

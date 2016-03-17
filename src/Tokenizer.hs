@@ -1,7 +1,7 @@
 module Tokenizer (tokenize, Token(..), TokenKind(..)
   , isStringToken, isCharToken, isIntToken, isFloatToken, isKeywordToken
   , isOperatorToken, isReservedOperatorToken, isIdentToken, isTypeIdentToken
-  , reconstructSpan) where
+  , reconstructSpan, reservedOperators) where
 
 import Prelude hiding (span)
 

@@ -2,9 +2,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Annotation (Fix(..), Ann(..)) where
+module Annotation (Fix(..), Ann(..), unfix) where
 
 data Fix f = Fix (f (Fix f))
+
+unfix (Fix x) = x
 
 instance (Show (f (Fix f))) => Show (Fix f) where
   show (Fix f) = show f

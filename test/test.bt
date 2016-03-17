@@ -14,6 +14,13 @@
   Wow
 */
 
+fn myfunc x : () =
+  let y = 10;
+  (
+    let z = 10;
+    y; z;
+  ); z; // Error
+
 fn nop = ()
 
 fn id x : a -> a = x

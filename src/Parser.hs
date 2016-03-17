@@ -248,11 +248,17 @@ expression = buildExpressionParser exprTable appl
 
 expressions :: Parser UExpr
 expressions =
-    span $ usequence <$> (sepEndBy1 expression lastUnit semi)
+    seqOrSingle
   where
     sepEndBy1 p q sep = (:) <$> p <*> many (sep *> (p <|> q))
     lastUnit =
       span $ (uliteral <$> (Literal LUnit <$> currentSpan))
+    seqOrSingle = do
+      (v, sp) <- getSpan $ sepEndBy1 expression lastUnit semi
+      case v of
+        []       -> error "Didn't expect empty expression"
+        [single] -> return $ single
+        seqs     -> return $ usequence seqs sp
 
 ptype :: Parser Type
 ptype =
