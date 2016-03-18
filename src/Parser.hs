@@ -103,10 +103,18 @@ term =
         [e] -> return $ e
         rst -> return $ utuple rst s
 
+path :: Parser Path
 path = do
-  tp <- optionMaybe (typePath <* reservedOp "::")
-  id <- name
-  return $ Path (fromMaybe (TypePath []) tp) id
+  tp <- optionMaybe typePath
+  case tp of 
+    Nothing -> do
+      id <- name
+      return $ IPath $ IdentPath (TypePath []) id
+    Just tp -> do
+      mid <- optionMaybe (reservedOp "::" *> name)
+      case mid of
+        Nothing -> return $ CPath tp
+        Just id -> return $ IPath $ IdentPath tp id 
   <?> "name path"
 
 -- Tries to parse a chain of field accesors
@@ -217,7 +225,7 @@ exprTable =
 
 injectNamed f k name = do
   opNm <- span $ unamed <$>
-        (toplevelName <$>
+        ((IPath . toplevelName) <$>
           (span $ Ident <$> (k name *> return name)))
   return $ f opNm
 

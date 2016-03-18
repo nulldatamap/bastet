@@ -175,8 +175,10 @@ memberOfContext elm (NameContext nms mparent) =
   else maybe False (memberOfContext elm) mparent
 
 pathToPathS :: Path -> PathS
-pathToPathS (Path (TypePath frags) ident) =
+pathToPathS (IPath (IdentPath (TypePath frags) ident)) =
   map (\(tyid, _) -> tyIdentName tyid) frags ++ [(identName ident)]
+pathToPathS (CPath (TypePath frags)) =
+  map (\(tyid, _) -> tyIdentName tyid) frags
 
 extractBindings :: Pattern -> [PathS]
 extractBindings (Pattern kind _) =
@@ -210,7 +212,7 @@ checkIdentRefs (mod, es) =
     checkExprRefs :: UExpr -> NameContext -> [NameError] -> UFuncDef
                      -> [NameError]
     checkExprRefs (Fix expr) ctx errs fn =
-      errsFromCheck ++ errs
+      (reverse errsFromCheck) ++ errs
       where
         errsFromCheck :: [NameError]
         errsFromCheck =
@@ -256,6 +258,6 @@ checkIdentRefs (mod, es) =
               foldl (\serrs sqex -> checkExprRefs sqex ctx serrs fn) [] ses
             _        -> []
 
+checkTypeNameRefs (mod, errs) =
+  (mod, errs)
 
-
-checkTypeNameRefs (mod, errs) = (mod, errs)

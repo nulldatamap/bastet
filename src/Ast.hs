@@ -8,7 +8,7 @@ module Ast
   , UConstruct(..), DataDef(..), TypePath(..), Path(..), CaseExpr(..)
   , Pattern(..), LetExpr(..), TypeKind(..), LiteralKind(..), ConstructKind(..)
   , ExpressionKind(..), PatternKind(..), Span(..), TypeIdent(..)
-  , TypeConstructor(..), enclosingSpan, Spanable(..) ) where
+  , TypeConstructor(..), enclosingSpan, Spanable(..), IdentPath(..) ) where
 
 import Data.Maybe
 import Data.List
@@ -42,7 +42,7 @@ ulet a s          = Fix $ Expression (ELet a) s
 usequence exprs s = Fix $ Expression (ESequence exprs) s
 utuple a s        = Fix $ Expression (ETuple a) s
 
-toplevelName p  = Path (TypePath []) p
+toplevelName p  = IdentPath (TypePath []) p
 
 --------------------------------------------------------------------------------
 --                                 Data structures                            --
@@ -61,9 +61,12 @@ data TypeIdent =
 data TypePath = TypePath [(TypeIdent, [Type])]
   deriving (Eq)
 
-data Path =
-  Path { pathFragments  :: TypePath
-       , pathIdent      :: Ident }
+data IdentPath =
+  IdentPath { pathFragments  :: TypePath
+            , pathIdent      :: Ident }
+  deriving (Eq)
+
+data Path = IPath IdentPath | CPath TypePath
   deriving (Eq)
 
 data TypeKind =
@@ -249,9 +252,13 @@ instance Show TypePath where
         [] -> show n 
         _  -> "(" ++ show n ++ pres (mlace " " $ map show aps) ++ ")" ) elms
 
+instance Show IdentPath where
+  show (IdentPath (TypePath []) n) = show n
+  show (IdentPath tp n) = show tp ++ "::" ++ show n
+
 instance Show Path where
-  show (Path (TypePath []) n) = show n
-  show (Path tp n) = show tp ++ "::" ++ show n
+  show (IPath i) = show i
+  show (CPath c) = show c
 
 instance Show Type where
   show (Type k _) = show k

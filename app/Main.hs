@@ -15,7 +15,7 @@ main = do
         Right out ->
           case constructModule out of
             Right mod  -> putStrLn "Compiled succesfully."
-            Left  errs -> putStrLn $ intercalate "\n" $ reverse $ map (\x -> showNameError x src) errs 
+            Left  errs -> putStrLn $ intercalate "\n" $ map (\x -> showNameError x src) errs 
         Left err -> do
           putStrLn $ reconstructSpan src tks err
     Left err  -> print $ err
